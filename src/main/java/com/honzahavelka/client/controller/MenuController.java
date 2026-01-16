@@ -91,6 +91,7 @@ public class MenuController {
     // V MenuController.java uprav metodu processMessage:
 
     private void processMessage(String msg) {
+        System.out.println("Message received: " + msg);
         Platform.runLater(() -> {
             String[] parts = msg.split(" ");
             String cmd = parts[0];
@@ -107,7 +108,6 @@ public class MenuController {
                     nickField.setDisable(true);
                     loginBtn.setDisable(true);
                     lobbyBox.setDisable(false);
-                    // ... zbytek kódu ...
                     break;
 
                 case "JOOK":
@@ -148,10 +148,6 @@ public class MenuController {
                     String errorMsg = msg.substring(5);
                     statusLabel.setText("Chyba: " + errorMsg);
                     statusLabel.setStyle("-fx-text-fill: red;");
-                    // V případě chyby při opouštění raději odemkneme tlačítko znovu
-                    if (statusLabel.getText().contains("Lobby")) {
-                        leaveBtn.setDisable(false);
-                    }
                     break;
             }
         });

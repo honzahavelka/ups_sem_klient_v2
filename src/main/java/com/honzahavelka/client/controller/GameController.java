@@ -4,6 +4,8 @@ import com.honzahavelka.client.Main;
 import com.honzahavelka.client.model.GameState;
 import com.honzahavelka.client.net.NetworkClient;
 import com.honzahavelka.client.view.GameCanvas;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -17,6 +19,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.util.Duration;
 
 public class GameController {
 
@@ -41,6 +44,12 @@ public class GameController {
     private boolean pausedByMe = false;
     private boolean pausedByOpponent = false;
 
+    private VBox reconnectBox;
+    private Label reconnectMsgLabel;
+    private Label reconnectTimerLabel;
+    private Timeline reconnectTimeline; // Objekt pro odpočet času
+    private int reconnectSecondsLeft = 30; // Výchozí čas
+
     public GameController() {
         this.gameState = new GameState();
         this.gameCanvas = new GameCanvas(gameState);
@@ -48,9 +57,10 @@ public class GameController {
         // --- VYTVOŘENÍ GAME OVER OVERLAY ---
         createGameOverOverlay();
         createPauseOverlay();
+        createReconnectOverlay();
 
         // Root obsahuje Canvas (vespod) a Overlay (navrchu)
-        this.root = new StackPane(this.gameCanvas, this.gameOverBox, this.pauseBox);
+        this.root = new StackPane(this.gameCanvas, this.gameOverBox, this.reconnectBox, this.pauseBox);
         this.root.setPrefSize(800, 600);
 
         this.gameCanvas.start();
@@ -87,6 +97,68 @@ public class GameController {
 
         // Ve výchozím stavu skryté
         gameOverBox.setVisible(false);
+    }
+
+    private void createReconnectOverlay() {
+        reconnectMsgLabel = new Label("Čekám na soupeře...");
+        reconnectMsgLabel.setFont(Font.font("Arial", FontWeight.BOLD, 30));
+        reconnectMsgLabel.setTextFill(Color.LIGHTBLUE);
+
+        reconnectTimerLabel = new Label("30");
+        reconnectTimerLabel.setFont(Font.font("Monospaced", FontWeight.BOLD, 60));
+        reconnectTimerLabel.setTextFill(Color.WHITE);
+
+        Label subLabel = new Label("Pokud se nepřipojí, hra skončí.");
+        subLabel.setTextFill(Color.GRAY);
+
+        Button leaveBtn = new Button("Opustit Lobby");
+        leaveBtn.setStyle("-fx-font-size: 16px; -fx-base: #f44336;");
+        leaveBtn.setOnAction(e -> handleLeave());
+
+        reconnectBox = new VBox(20, reconnectMsgLabel, reconnectTimerLabel, subLabel, leaveBtn);
+        reconnectBox.setAlignment(Pos.CENTER);
+        reconnectBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);"); // Tmavší pozadí
+
+        // Roztáhneme na celé okno
+        reconnectBox.setPrefSize(800, 600);
+        reconnectBox.setVisible(false);
+    }
+
+    private void startReconnectCountdown() {
+        // 1. Resetujeme čas a UI
+        reconnectSecondsLeft = 30;
+        reconnectTimerLabel.setText(String.valueOf(reconnectSecondsLeft));
+        reconnectBox.setVisible(true);
+
+        // 2. Pokud už timeline běží z minula, zastavíme ji
+        if (reconnectTimeline != null) {
+            reconnectTimeline.stop();
+        }
+
+        // 3. Vytvoříme novou časovou osu
+        reconnectTimeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
+            reconnectSecondsLeft--;
+            reconnectTimerLabel.setText(String.valueOf(reconnectSecondsLeft));
+
+            if (reconnectSecondsLeft <= 0) {
+                // Čas vypršel!
+                reconnectTimeline.stop();
+                // Pokud server do té doby neposlal KICK, vyvoláme ho uměle my,
+                // abychom hráče netrápili nekonečným čekáním.
+                handleKick();
+            }
+        }));
+
+        // 4. Nastavíme počet opakování a spustíme
+        reconnectTimeline.setCycleCount(30);
+        reconnectTimeline.play();
+    }
+
+    private void stopReconnectCountdown() {
+        if (reconnectTimeline != null) {
+            reconnectTimeline.stop();
+        }
+        reconnectBox.setVisible(false);
     }
 
     private void createPauseOverlay() {
@@ -131,6 +203,7 @@ public class GameController {
     }
 
     private void handleLeave() {
+        stopReconnectCountdown();
         if (networkClient != null) {
             // Pokud jsme NEBYLI vyhozeni, pošleme serveru slušné sbohem.
             // Pokud JSME byli vyhozeni (wasKicked == true), server už o nás ví, neposíláme nic.
@@ -145,6 +218,7 @@ public class GameController {
     }
 
     private void handleKick() {
+        stopReconnectCountdown();
         wasKicked = true; // Nastavíme příznak
 
         // 2. Deaktivujeme odvetu (nemáme s kým hrát)
@@ -183,6 +257,7 @@ public class GameController {
     }
 
     private void handleResume(String msg) {
+        stopReconnectCountdown();
         // Msg: RESU <slot_id>
         try {
             String[] parts = msg.split(" ");
@@ -200,6 +275,40 @@ public class GameController {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void handleReconnect(String msg) {
+        try {
+            // Msg: RECO <slot_id>
+            String[] parts = msg.split(" ");
+            int disconnectedSlot = Integer.parseInt(parts[1]);
+            int mySlot = gameState.amILeft ? 0 : 1;
+
+            // Overlay zobrazíme jen tehdy, pokud se odpojil SOUPEŘ.
+            // (Pokud server pošle RECO i pro mě, tak to ignoruji, protože já jsem tady)
+            if (disconnectedSlot != mySlot) {
+                startReconnectCountdown();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void handleContinue() {
+        System.out.println("Soupeř se vrátil, hra pokračuje (CONT).");
+
+        // 1. Zastavíme odpočet a schováme overlay
+        stopReconnectCountdown();
+
+        // 2. Pro jistotu schováme i pauzu, pokud by tam nějaká visela
+        if (pauseBox.isVisible()) {
+            pauseBox.setVisible(false);
+            pausedByMe = false;
+            pausedByOpponent = false;
+        }
+
+        // 3. DŮLEŽITÉ: Vrátíme focus hře, aby fungovaly šipky/WS
+        root.requestFocus();
     }
 
     private void processMessage(String msg) {
@@ -239,12 +348,19 @@ public class GameController {
             else if (msg.startsWith("KICK")) {
                 Platform.runLater(this::handleKick);
             }
+            else if (msg.startsWith("RECO")) {
+                Platform.runLater(() -> handleReconnect(msg));
+            }
+            else if (msg.startsWith("CONT")) {
+                Platform.runLater(this::handleContinue);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     private void showGameOver(String msg) {
+        stopReconnectCountdown();
         pauseBox.setVisible(false);
 
         String[] parts = msg.split(" ");
@@ -301,6 +417,7 @@ public class GameController {
     }
 
     private void restartGame() {
+        stopReconnectCountdown();
         // Reset UI pro novou hru
         gameOverBox.setVisible(false);
         pauseBox.setVisible(false);

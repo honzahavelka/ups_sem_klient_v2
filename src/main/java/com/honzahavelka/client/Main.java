@@ -15,33 +15,73 @@ public class Main extends Application {
     // Statické reference, abychom k nim mohli přistupovat z Controllerů
     private static NetworkClient networkClient;
     private static Stage primaryStage;
+    private static String loggedInNick = null;
 
     @Override
     public void start(Stage stage) throws IOException {
         primaryStage = stage;
 
         // 1. Inicializace sítě (Připojíme se hned při startu)
-        connectToServer();
-
-        // 2. Načtení Login Menu (FXML)
-        FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("menu.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 400, 300); // Menší okno pro login
-
-        stage.setTitle("Pong Client - Login");
-        stage.setScene(scene);
-        stage.show();
+        showConnectScreen();
     }
 
-    /**
-     * Vytvoří spojení se serverem.
-     * Zatím jen vypisuje zprávy do konzole, dokud si je nepřevezme Controller.
-     */
-    private void connectToServer() {
-        networkClient = new NetworkClient("127.0.0.1", 10000, (msg) -> {
-            // Defaultní listener - jen pro debug, než si to převezme Menu nebo Hra
-            System.out.println("RAW SERVER MSG: " + msg);
+    public static void showConnectScreen() {
+        try {
+            FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("connect.fxml"));
+            Scene scene = new Scene(fxmlLoader.load(), 350, 300); // Menší okno
+            primaryStage.setTitle("Pong Client - Connect");
+            primaryStage.setScene(scene);
+            primaryStage.centerOnScreen();
+            primaryStage.show();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void showBanScreen(String rawMessage) {
+        Platform.runLater(() -> {
+            try {
+                // 1. Získání důvodu (FBAN <důvod>)
+                String reason = "Neznámý důvod";
+                if (rawMessage.length() > 5) {
+                    reason = rawMessage.substring(5);
+                }
+
+                // 2. Vytvoření UI (Čistý Java kód, FXML není potřeba pro tak jednoduchou věc)
+                javafx.scene.control.Label titleLabel = new javafx.scene.control.Label("BANNED");
+                titleLabel.setFont(javafx.scene.text.Font.font("Impact", 80)); // Velké písmo
+                titleLabel.setTextFill(javafx.scene.paint.Color.RED);
+
+                javafx.scene.control.Label reasonLabel = new javafx.scene.control.Label("Důvod: " + reason);
+                reasonLabel.setFont(javafx.scene.text.Font.font("Arial", 24));
+                reasonLabel.setTextFill(javafx.scene.paint.Color.WHITE);
+                reasonLabel.setWrapText(true);
+
+                javafx.scene.control.Button exitBtn = new javafx.scene.control.Button("Ukončit aplikaci");
+                exitBtn.setStyle("-fx-base: black; -fx-text-fill: white; -fx-border-color: red;");
+                exitBtn.setOnAction(e -> System.exit(0));
+
+                javafx.scene.layout.VBox root = new javafx.scene.layout.VBox(30, titleLabel, reasonLabel, exitBtn);
+                root.setAlignment(javafx.geometry.Pos.CENTER);
+                root.setStyle("-fx-background-color: black;"); // Černé pozadí
+
+                // 3. Nastavení scény
+                Scene banScene = new Scene(root, 800, 600);
+                primaryStage.setScene(banScene);
+                primaryStage.setTitle("BANNED FROM SERVER");
+
+                // 4. Odpojení sítě (už nemá smysl komunikovat)
+                if (networkClient != null) {
+                    networkClient.close();
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         });
     }
+
 
     /**
      * Metoda pro přepnutí z Menu do Hry.
@@ -71,12 +111,13 @@ public class Main extends Application {
         });
     }
 
+    // Tuto metodu teď volá ConnectController po úspěšném HELO
     public static void switchToMenu() {
         Platform.runLater(() -> {
             try {
                 FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("menu.fxml"));
                 Scene scene = new Scene(fxmlLoader.load(), 400, 300);
-                primaryStage.setTitle("Pong Client - Login");
+                primaryStage.setTitle("Pong Client - Main Menu");
                 primaryStage.setScene(scene);
                 primaryStage.centerOnScreen();
             } catch (IOException e) {
@@ -85,7 +126,10 @@ public class Main extends Application {
         });
     }
 
-    private static String loggedInNick = null;
+    public static void setNetworkClient(NetworkClient client) {
+        networkClient = client;
+    }
+
 
     public static String getLoggedInNick() {
         return loggedInNick;

@@ -7,7 +7,11 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+
+import javafx.scene.input.KeyEvent;
 
 public class MenuController {
 
@@ -19,6 +23,11 @@ public class MenuController {
 
     @FXML private Button leaveBtn;
     @FXML private Button joinBtn;
+
+    // --- NOVÉ PRO ESC MENU ---
+    @FXML private StackPane rootPane; // Kořen (kvůli focusu)
+    @FXML private VBox escMenuBox;    // Overlay menu
+    @FXML private VBox contentBox;    // Původní obsah (pro rozostření/disable)
 
     private NetworkClient networkClient;
 
@@ -53,6 +62,58 @@ public class MenuController {
             statusLabel.setText("Vítej zpět, " + savedNick);
             statusLabel.setStyle("-fx-text-fill: green;");
         }
+        Platform.runLater(() -> rootPane.requestFocus());
+    }
+
+    // --- OVLÁDÁNÍ KLÁVESNICE ---
+    @FXML
+    public void onKeyPressed(KeyEvent event) {
+        if (event.getCode() == KeyCode.ESCAPE) {
+            toggleEscMenu();
+        }
+    }
+
+    private void toggleEscMenu() {
+        boolean isVisible = escMenuBox.isVisible();
+        escMenuBox.setVisible(!isVisible);
+        contentBox.setDisable(!isVisible); // Deaktivujeme tlačítka vespod, aby nešlo klikat "skrz"
+
+        if (!isVisible) {
+            // Pokud jsme menu právě otevřeli
+            statusLabel.setText("Menu otevřeno");
+        }
+    }
+
+    @FXML
+    protected void onResumeClick() {
+        toggleEscMenu(); // Jen zavře menu
+    }
+
+    @FXML
+    protected void onDisconnectClick() {
+        // 1. Zavřít spojení
+        if (networkClient != null) {
+            // Pošleme serveru sbohem (volitelné, server to pozná i tak)
+            // networkClient.send("LEAV");
+            networkClient.close();
+        }
+
+        // 2. Vyčistit globální stav v Main
+        Main.setNetworkClient(null);
+        Main.setLoggedInNick(null); // Zapomeneme nick, aby se příště musel přihlásit znovu
+
+        // 3. Přepnout na Connect obrazovku
+        Main.showConnectScreen();
+    }
+
+    @FXML
+    protected void onExitClick() {
+        // Ukončit celou aplikaci
+        if (networkClient != null) {
+            networkClient.close();
+        }
+        Platform.exit();
+        System.exit(0);
     }
 
     @FXML
@@ -138,7 +199,7 @@ public class MenuController {
                 case "GAST":
                     // NOVINKA: Toto je ten moment startu!
                     // Protokol: GAST LEFT nebo GAST RIGHT
-                    boolean amILeft = parts[1].equals("LEFT");
+                    boolean amILeft = parts[1].equals("0");
 
                     // Přepneme do hry a předáme stranu
                     Main.switchToGame(amILeft);

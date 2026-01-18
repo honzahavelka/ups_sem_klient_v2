@@ -7,34 +7,49 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
+<?import javafx.scene.layout.StackPane?>
 
-<VBox alignment="CENTER" spacing="20.0" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.honzahavelka.client.controller.MenuController">
-    <padding>
-        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
-    </padding>
+<StackPane fx:id="rootPane" onKeyPressed="#onKeyPressed" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.honzahavelka.client.controller.MenuController">
 
-    <Label text="PONG KLIENT">
-        <font>
-            <Font name="System Bold" size="24.0" />
-        </font>
-    </Label>
+    <VBox fx:id="contentBox" alignment="CENTER" spacing="20.0">
+        <padding>
+            <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+        </padding>
 
-    <VBox alignment="CENTER" spacing="10">
-        <Label text="Zadej přezdívku:" />
-        <HBox alignment="CENTER" spacing="10">
-            <TextField fx:id="nickField" promptText="Nick" text="Player1" />
-            <Button fx:id="loginBtn" onAction="#onLoginClick" text="Přihlásit" />
-        </HBox>
+        <Label text="PONG KLIENT">
+            <font>
+                <Font name="System Bold" size="24.0" />
+            </font>
+        </Label>
+
+        <VBox alignment="CENTER" spacing="10">
+            <Label text="Zadej přezdívku:" />
+            <HBox alignment="CENTER" spacing="10">
+                <TextField fx:id="nickField" promptText="Nick" text="Player1" />
+                <Button fx:id="loginBtn" onAction="#onLoginClick" text="Přihlásit" />
+            </HBox>
+        </VBox>
+
+        <VBox fx:id="lobbyBox" alignment="CENTER" disable="true" spacing="10">
+            <Label text="Vyber Lobby ID:" />
+            <HBox alignment="CENTER" spacing="10">
+                <TextField fx:id="lobbyField" promptText="ID (např. 0)" text="0" />
+                <Button fx:id="joinBtn" onAction="#onJoinClick" text="Připojit se" />
+            </HBox>
+            <Button fx:id="leaveBtn" onAction="#onLeaveClick" text="Opustit Lobby" disable="true" style="-fx-background-color: #ffcccc; -fx-text-fill: red;"/>
+        </VBox>
+
+        <Label fx:id="statusLabel" textFill="RED" />
     </VBox>
 
-    <VBox fx:id="lobbyBox" alignment="CENTER" disable="true" spacing="10">
-        <Label text="Vyber Lobby ID:" />
-        <HBox alignment="CENTER" spacing="10">
-            <TextField fx:id="lobbyField" promptText="ID (např. 0)" text="0" />
-            <Button fx:id="joinBtn" onAction="#onJoinClick" text="Připojit se" />
-        </HBox>
-        <Button fx:id="leaveBtn" onAction="#onLeaveClick" text="Opustit Lobby" disable="true" style="-fx-background-color: #ffcccc; -fx-text-fill: red;"/>
+    <VBox fx:id="escMenuBox" visible="false" alignment="CENTER" spacing="20" style="-fx-background-color: rgba(0,0,0,0.8);">
+        <Label text="MENU" textFill="WHITE">
+            <font><Font name="System Bold" size="30"/></font>
+        </Label>
+
+        <Button text="Zpět do Lobby" onAction="#onResumeClick" prefWidth="200"/>
+        <Button text="Odpojit se (Connect)" onAction="#onDisconnectClick" prefWidth="200" style="-fx-base: orange;"/>
+        <Button text="Ukončit aplikaci" onAction="#onExitClick" prefWidth="200" style="-fx-base: red; -fx-text-fill: white;"/>
     </VBox>
 
-    <Label fx:id="statusLabel" textFill="RED" />
-</VBox>
+</StackPane>

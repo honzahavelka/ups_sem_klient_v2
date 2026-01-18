@@ -1,6 +1,7 @@
 module com.honzahavelka.client {
     requires javafx.controls;
     requires javafx.fxml;
+    requires java.desktop;
 
 
     opens com.honzahavelka.client to javafx.fxml;

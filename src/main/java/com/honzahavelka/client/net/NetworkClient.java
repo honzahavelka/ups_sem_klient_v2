@@ -1,5 +1,7 @@
 package com.honzahavelka.client.net;
 
+import com.honzahavelka.client.Main;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,21 +19,20 @@ public class NetworkClient {
     // Callback - funkce, kterou zavoláme, když přijde zpráva
     private Consumer<String> onMessageReceived;
 
-    public NetworkClient(String host, int port, Consumer<String> onMessageReceived) {
+    // V NetworkClient.java
+
+    // Změň hlavičku konstruktoru a vyhoď try-catch kolem new Socket
+    public NetworkClient(String host, int port, Consumer<String> onMessageReceived) throws IOException {
         this.onMessageReceived = onMessageReceived;
-        try {
-            System.out.println("Připojuji se k " + host + ":" + port + "...");
-            socket = new Socket(host, port);
-            out = new PrintWriter(socket.getOutputStream(), true); // true = autoFlush (důležité pro \n)
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // Spustíme naslouchání
-            startListening();
-            System.out.println("Připojeno!");
+        // Tady už není try-catch! Pokud to selže, chybu chytí ConnectController
+        System.out.println("Připojuji se k " + host + ":" + port + "...");
+        socket = new Socket(host, port);
+        out = new PrintWriter(socket.getOutputStream(), true);
+        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-        } catch (IOException e) {
-            System.err.println("Chyba připojení: " + e.getMessage());
-        }
+        startListening();
+        System.out.println("Připojeno!");
     }
 
     private void startListening() {
@@ -41,6 +42,16 @@ public class NetworkClient {
                 String line;
                 // Čteme dokud je spojení a chodí data
                 while (running && (line = in.readLine()) != null) {
+
+                    if (line.startsWith("FBAN")) {
+                        // Pokud je to BAN, okamžitě to řešíme globálně
+                        // Nemusíme to posílat do Controlleru, ten už nic nezmůže
+                        Main.showBanScreen(line);
+
+                        // Ukončíme smyčku čtení, protože jsme skončili
+                        running = false;
+                        break;
+                    }
                     onMessageReceived.accept(line); // Předáme zprávu dál
                 }
             } catch (IOException e) {

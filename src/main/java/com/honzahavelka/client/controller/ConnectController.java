@@ -68,12 +68,12 @@ public class ConnectController {
                 } else if (msg.startsWith("ERRO")) {
                     // --- SERVER ODMÍTL (např. plno nebo ban) ---
                     String error = msg.length() > 5 ? msg.substring(5) : "Neznámá chyba";
-                    showError("Server odmítl připojení:\n" + error);
+                    showError("Server odmítl připojení.");
                     closeTempClient();
 
                 } else {
                     // --- DIVNÁ ODPOVĚĎ (Jiný protokol?) ---
-                    showError("Neplatný protokol serveru.\nPřišlo: " + msg);
+                    showError("Neplatný protokol serveru.");
                     closeTempClient();
                 }
 

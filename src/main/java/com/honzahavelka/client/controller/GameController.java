@@ -21,6 +21,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
 
+import java.util.Objects;
+
 public class GameController {
 
     private NetworkClient networkClient;
@@ -49,8 +51,6 @@ public class GameController {
     private Label reconnectTimerLabel;
     private Timeline reconnectTimeline; // Objekt pro odpočet času
     private int reconnectSecondsLeft = 30; // Výchozí čas
-
-    private int simulationCounter = 0;
 
     public GameController() {
         this.gameState = new GameState();
@@ -243,6 +243,13 @@ public class GameController {
         try {
             String[] parts = msg.split(" ");
             int pauserSlot = Integer.parseInt(parts[1]);
+
+            if (pauserSlot == 0) {
+                gameState.p1_paused = true;
+            }
+            else if (pauserSlot == 1) {
+                gameState.p2_paused = true;
+            }
             int mySlot = gameState.amILeft ? 0 : 1;
 
             if (pauserSlot == mySlot) {
@@ -256,6 +263,7 @@ public class GameController {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
     }
 
     private void handleResume(String msg) {
@@ -265,6 +273,13 @@ public class GameController {
             String[] parts = msg.split(" ");
             int resumerSlot = Integer.parseInt(parts[1]);
             int mySlot = gameState.amILeft ? 0 : 1;
+
+            if (resumerSlot == 0) {
+                gameState.p1_paused = false;
+            }
+            else if (resumerSlot == 1) {
+                gameState.p2_paused = false;
+            }
 
             if (resumerSlot == mySlot) {
                 pausedByMe = false;
@@ -286,6 +301,8 @@ public class GameController {
             int disconnectedSlot = Integer.parseInt(parts[1]);
             int mySlot = gameState.amILeft ? 0 : 1;
 
+            gameState.reconnecting = true;
+
             // Overlay zobrazíme jen tehdy, pokud se odpojil SOUPEŘ.
             // (Pokud server pošle RECO i pro mě, tak to ignoruji, protože já jsem tady)
             if (disconnectedSlot != mySlot) {
@@ -298,7 +315,7 @@ public class GameController {
 
     private void handleContinue() {
         System.out.println("Soupeř se vrátil, hra pokračuje (CONT).");
-
+        gameState.reconnecting = false;
         // 1. Zastavíme odpočet a schováme overlay
         stopReconnectCountdown();
 
@@ -321,22 +338,14 @@ public class GameController {
         // System.out.println("Msg: " + msg); // Pro debug dobré, pro produkci u STAT zpráv raději vypnout (zahltí konzoli)
 
         try {
-            if (msg.startsWith("STAT")) {
-                String[] parts = msg.split(" ");
-
-                // Validace: Musíme mít dostatek dílků (STAT + 6 čísel)
-                if (parts.length < 7) {
-                    throw new IllegalArgumentException("Neúplná STAT zpráva (délka " + parts.length + ")");
-                }
-
-                // Tady může vyletět NumberFormatException, pokud server pošle nesmysl.
-                // Catch blok dole to zachytí a započítá jako chybu protokolu.
-                gameState.ballX = Double.parseDouble(parts[1]);
-                gameState.ballY = Double.parseDouble(parts[2]);
-                gameState.paddle1Y = Double.parseDouble(parts[3]);
-                gameState.paddle2Y = Double.parseDouble(parts[4]);
-                gameState.score1 = Integer.parseInt(parts[5]);
-                gameState.score2 = Integer.parseInt(parts[6]);
+            if (msg.startsWith("MOVE")) {
+                Platform.runLater(() -> handleMove(msg));
+            }
+            else if (msg.startsWith("STAT")) {
+                Platform.runLater(() -> handleStat(msg));
+            }
+            else if (msg.startsWith("BALL")) {
+                Platform.runLater(() -> handleBall(msg));
             }
             else if (msg.startsWith("PAUS")) {
                 Platform.runLater(() -> handlePause(msg));
@@ -364,7 +373,7 @@ public class GameController {
             }
             else if (msg.startsWith("GOAL") || msg.startsWith("PING")) {
                 // Odpověď serveru, že jsme připraveni (po gólu) nebo že žijeme (ping)
-                this.networkClient.send("REDY");
+                Platform.runLater(() -> handleGoal(msg));
             }
             else if (msg.startsWith("LEOK")) {
                 //opuštění lobby
@@ -389,6 +398,57 @@ public class GameController {
             // Zalogujeme a pošleme do Mainu k započítání (3 chyby -> disconnect)
             // Používáme runLater, protože Main může chtít přepnout scénu na ConnectScreen
             Platform.runLater(() -> Main.handleProtocolError(errorDetail));
+        }
+    }
+
+    private void handleStat(String msg) {
+        String[] parts = msg.split(" ");
+
+        gameState.ball.setPosition(Double.parseDouble(parts[1]), Double.parseDouble(parts[2]));
+        gameState.player1.setY(Double.parseDouble(parts[3]));
+        gameState.player2.setY(Double.parseDouble(parts[4]));
+        gameState.score1 = Integer.parseInt(parts[5]);
+        gameState.score2 = Integer.parseInt(parts[6]);
+    }
+
+    private void handleGoal(String msg) {
+        this.networkClient.send("REDY");
+        if (msg.startsWith("PING")) return;
+
+        String[] parts = msg.split(" ");
+        gameState.score1 = Integer.parseInt(parts[1]);
+        gameState.score2 = Integer.parseInt(parts[2]);
+
+        gameState.player1.setY(250);
+        gameState.player2.setY(250);
+        gameState.ball.setDx(500);
+        gameState.ball.setDy(0);
+        gameState.ball.setPosition(395, 295);
+    }
+
+    private void handleBall(String msg) {
+        String[] parts = msg.split(" ");
+        gameState.ball.setPosition(Double.parseDouble(parts[1]),  Double.parseDouble(parts[2]));
+        gameState.ball.setDx(Double.parseDouble(parts[3]));
+        gameState.ball.setDy(Double.parseDouble(parts[4]));
+    }
+
+    private void handleMove(String msg) {
+        String[] parts = msg.split(" ");
+
+        if (parts[1].equals("0")) {
+            if (Objects.equals(parts[2], "UP")) gameState.player1.moveUp();
+            else if (Objects.equals(parts[2], "DOWN")) gameState.player1.moveDown();
+            else if (Objects.equals(parts[2], "NONE")) gameState.player1.stop();
+
+            gameState.player1.setY(Double.parseDouble(parts[3]));
+        }
+        else if (parts[1].equals("1")) {
+            if (Objects.equals(parts[2], "UP")) gameState.player2.moveUp();
+            else if (Objects.equals(parts[2], "DOWN")) gameState.player2.moveDown();
+            else if (Objects.equals(parts[2], "NONE")) gameState.player2.stop();
+
+            gameState.player2.setY(Double.parseDouble(parts[3]));
         }
     }
 
@@ -450,6 +510,7 @@ public class GameController {
     }
 
     private void restartGame() {
+        gameState.resetPhysics();
         stopReconnectCountdown();
         // Reset UI pro novou hru
         gameOverBox.setVisible(false);

@@ -216,6 +216,9 @@ public class MenuController {
                         statusLabel.setStyle("-fx-text-fill: red;");
                         break;
 
+                    case "KICK":
+                        break;
+
                     // --- NOVÉ: OCHRANA PROTI NEZNÁMÝM PŘÍKAZŮM ---
                     default:
                         throw new IllegalArgumentException("Neznámý příkaz v menu: " + cmd);

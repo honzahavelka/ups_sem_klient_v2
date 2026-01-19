@@ -54,6 +54,12 @@ public class NetworkClient {
                     }
                     onMessageReceived.accept(line); // Předáme zprávu dál
                 }
+
+                // detekce ukončení ze strany serveru
+                if (running) {
+                    System.out.println("Server ukončil spojení (EOF).");
+                    handleServerDisconnect();
+                }
             } catch (IOException e) {
                 if (running) System.out.println("Spojení přerušeno serverem.");
             }
@@ -81,5 +87,13 @@ public class NetworkClient {
     // Přidej toto do NetworkClient.java
     public void setOnMessageReceived(Consumer<String> listener) {
         this.onMessageReceived = listener; // Poznámka: odstraň 'final' u proměnné onMessageReceived
+    }
+
+    private void handleServerDisconnect() {
+        running = false; // Už nemá smysl číst dál
+
+        // Musíme zavolat Main, aby přepnul grafiku (musí to být v runLater)
+        // Můžeme Reuse metody showConnectScreen, nebo ukázat Alert
+        com.honzahavelka.client.Main.handleConnectionLost();
     }
 }

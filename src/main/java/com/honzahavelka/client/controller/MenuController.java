@@ -153,63 +153,80 @@ public class MenuController {
 
     private void processMessage(String msg) {
         System.out.println("Message received: " + msg);
+
         Platform.runLater(() -> {
-            String[] parts = msg.split(" ");
-            String cmd = parts[0];
+            try {
+                String[] parts = msg.split(" ");
 
-            switch (cmd) {
-                case "LOOK":
-                    String nick = parts[1];
+                // Ochrana proti prázdné zprávě
+                if (parts.length == 0) {
+                    throw new IllegalArgumentException("Prázdná zpráva");
+                }
 
-                    // --- NOVÉ: ULOŽÍME NICK PRO PŘÍŠTĚ ---
-                    Main.setLoggedInNick(nick);
+                String cmd = parts[0];
 
-                    statusLabel.setText("Přihlášen jako: " + nick);
-                    statusLabel.setStyle("-fx-text-fill: green;");
-                    nickField.setDisable(true);
-                    loginBtn.setDisable(true);
-                    lobbyBox.setDisable(false);
-                    break;
+                switch (cmd) {
+                    case "LOOK":
+                        // Očekáváme: LOOK <nick>
+                        if (parts.length < 2) throw new IllegalArgumentException("Chybí nick v LOOK");
 
-                case "JOOK":
-                    // ZMĚNA: Tady už nepřepínáme scénu!
-                    // Jen zamkneme UI a informujeme uživatele.
-                    statusLabel.setText("Vstoupil jsi do lobby. Čekám na hru...");
-                    statusLabel.setStyle("-fx-text-fill: orange;");
+                        String nick = parts[1];
+                        Main.setLoggedInNick(nick);
 
+                        statusLabel.setText("Přihlášen jako: " + nick);
+                        statusLabel.setStyle("-fx-text-fill: green;");
+                        nickField.setDisable(true);
+                        loginBtn.setDisable(true);
+                        lobbyBox.setDisable(false);
+                        break;
 
-                    // Zamkneme možnost připojit se jinam
-                    lobbyField.setDisable(true);
-                    joinBtn.setDisable(true);
+                    case "JOOK":
+                        // Očekáváme: JOOK
+                        statusLabel.setText("Vstoupil jsi do lobby. Čekám na hru...");
+                        statusLabel.setStyle("-fx-text-fill: orange;");
 
-                    // Odemkneme možnost odejít
-                    leaveBtn.setDisable(false);
-                    break;
+                        lobbyField.setDisable(true);
+                        joinBtn.setDisable(true);
+                        leaveBtn.setDisable(false);
+                        break;
 
-                case "LEOK":
-                    statusLabel.setText("Lobby opuštěno. Vyber nové.");
-                    statusLabel.setStyle("-fx-text-fill: black;");
+                    case "LEOK":
+                        // Očekáváme: LEOK
+                        statusLabel.setText("Lobby opuštěno. Vyber nové.");
+                        statusLabel.setStyle("-fx-text-fill: black;");
 
-                    // Vrátíme UI do stavu pro výběr lobby
-                    lobbyField.setDisable(false);
-                    joinBtn.setDisable(false);
-                    leaveBtn.setDisable(true); // Už není co opouštět
-                    break;
+                        lobbyField.setDisable(false);
+                        joinBtn.setDisable(false);
+                        leaveBtn.setDisable(true);
+                        break;
 
-                case "GAST":
-                    // NOVINKA: Toto je ten moment startu!
-                    // Protokol: GAST LEFT nebo GAST RIGHT
-                    boolean amILeft = parts[1].equals("0");
+                    case "GAST":
+                        // Očekáváme: GAST <side_id>
+                        if (parts.length < 2) throw new IllegalArgumentException("Chybí side_id v GAST");
 
-                    // Přepneme do hry a předáme stranu
-                    Main.switchToGame(amILeft);
-                    break;
+                        // Bezpečně určíme stranu (0 = Left, 1 = Right)
+                        boolean amILeft = parts[1].equals("0");
+                        Main.switchToGame(amILeft);
+                        break;
 
-                case "ERRO":
-                    String errorMsg = msg.substring(5);
-                    statusLabel.setText("Chyba: " + errorMsg);
-                    statusLabel.setStyle("-fx-text-fill: red;");
-                    break;
+                    case "ERRO":
+                        // Očekáváme: ERRO <msg>
+                        String errorMsg = msg.length() > 5 ? msg.substring(5) : "Neznámá chyba";
+                        statusLabel.setText("Chyba: " + errorMsg);
+                        statusLabel.setStyle("-fx-text-fill: red;");
+                        break;
+
+                    // --- NOVÉ: OCHRANA PROTI NEZNÁMÝM PŘÍKAZŮM ---
+                    default:
+                        throw new IllegalArgumentException("Neznámý příkaz v menu: " + cmd);
+                }
+
+            } catch (Exception e) {
+                // --- CENTRÁLNÍ ZPRACOVÁNÍ CHYB ---
+                // Ať už je to IndexOutOfBounds (chybí argumenty) nebo IllegalArgument (neznámý příkaz),
+                // pošleme to do Mainu. Ten započítá chybu a při 3. chybě nás odpojí.
+                String errorDetail = e.getClass().getSimpleName() + ": " + e.getMessage();
+                Main.handleProtocolError(errorDetail + " [Msg: " + msg + "]");
             }
         });
     }

@@ -15,9 +15,10 @@ public class GameCanvas extends Canvas {
     // Konstanty rozměrů (dle specifikace serveru)
     private static final double WIDTH = 800;
     private static final double HEIGHT = 600;
-    private static final double PADDLE_W = 10;
-    private static final double PADDLE_H = 100;
-    private static final double BALL_S = 10;
+    private static final double PADDLE_WIDTH = 10;
+    private static final double PADDLE_HEIGHT = 100;
+    private static final double BALL_SIZE = 10;
+    private static final double SCORE_PIXEL_SIZE = 20;
 
     public GameCanvas(GameState gameState) {
         super(WIDTH, HEIGHT);
@@ -42,34 +43,71 @@ public class GameCanvas extends Canvas {
 
     private void draw() {
         GraphicsContext gc = getGraphicsContext2D();
+        double w = getWidth();
+        double h = getHeight();
 
-        // 1. Vymazat pozadí (černá)
+        // 1. DŮLEŽITÉ: Vypnutí vyhlazování pro retro vzhled
+        gc.setImageSmoothing(false);
+
+        // 2. Pozadí (Čistá černá)
         gc.setFill(Color.BLACK);
-        gc.fillRect(0, 0, WIDTH, HEIGHT);
+        gc.fillRect(0, 0, w, h);
 
-        // 2. Vykreslit skóre
+        // Všechno ostatní bude bílé
         gc.setFill(Color.WHITE);
-        gc.setFont(new Font("Monospaced", 40));
-        gc.fillText(gameState.score1 + " : " + gameState.score2, WIDTH / 2 - 60, 50);
 
-        // 3. Vykreslit pálky
-        // Levá pálka (X=10 - jen odhad, záleží jak server počítá kolize, doladíme)
-        gc.setFill(gameState.amILeft ? Color.CYAN : Color.WHITE); // Moje pálka modrá
-        gc.fillRect(10, gameState.paddle1Y, PADDLE_W, PADDLE_H);
+        // 3. Středová přerušovaná čára
+        double dashWidth = 10;
+        double dashHeight = 20;
+        double gap = 20;
+        double xCenter = w / 2 - dashWidth / 2;
+        for (double y = gap / 2; y < h; y += dashHeight + gap) {
+            gc.fillRect(xCenter, y, dashWidth, dashHeight);
+        }
 
-        // Pravá pálka (X=780)
-        gc.setFill(!gameState.amILeft ? Color.CYAN : Color.WHITE);
-        gc.fillRect(WIDTH - 20, gameState.paddle2Y, PADDLE_W, PADDLE_H);
+        // 4. Pálky (Hranaté)
+        // Levá
+        gc.fillRect(10, gameState.paddle1Y, PADDLE_WIDTH, PADDLE_HEIGHT);
+        // Pravá (odsazená od kraje)
+        gc.fillRect(w - 10 - PADDLE_WIDTH, gameState.paddle2Y, PADDLE_WIDTH, PADDLE_HEIGHT);
 
-        // 4. Vykreslit míček
-        gc.setFill(Color.YELLOW);
-        gc.fillRect(gameState.ballX, gameState.ballY, BALL_S, BALL_S);
+        // 5. Míček (Čtvercový)
+        // Souřadnice míčku ze serveru jsou jeho střed, musíme posunout na levý horní roh
+        gc.fillRect(gameState.ballX - BALL_SIZE / 2, gameState.ballY - BALL_SIZE / 2, BALL_SIZE, BALL_SIZE);
 
-        // 5. Game Over Text
-        if (gameState.gameOver) {
-            gc.setFill(Color.RED);
-            gc.setFont(new Font("Arial", 60));
-            gc.fillText(gameState.winnerText, WIDTH / 2 - 200, HEIGHT / 2);
+        // 6. Retro Skóre
+        // Kreslíme vlastní pixelová čísla
+        drawPixelNumber(gc, gameState.score1, w / 2 - 100, 50);
+        drawPixelNumber(gc, gameState.score2, w / 2 + 60, 50);
+    }
+
+    // --- Pomocná metoda pro kreslení pixelových čísel ---
+    private void drawPixelNumber(GraphicsContext gc, int number, double x, double y) {
+        double s = SCORE_PIXEL_SIZE; // Zkratka pro velikost
+
+        // Definice tvarů čísel (pomocí matice 3x5 pixelů)
+        // 1 = kreslit pixel, 0 = nekreslit
+        int[][] shape = switch (number) {
+            case 0 -> new int[][]{{1, 1, 1}, {1, 0, 1}, {1, 0, 1}, {1, 0, 1}, {1, 1, 1}};
+            case 1 -> new int[][]{{0, 0, 1}, {0, 0, 1}, {0, 0, 1}, {0, 0, 1}, {0, 0, 1}};
+            case 2 -> new int[][]{{1, 1, 1}, {0, 0, 1}, {1, 1, 1}, {1, 0, 0}, {1, 1, 1}};
+            case 3 -> new int[][]{{1, 1, 1}, {0, 0, 1}, {1, 1, 1}, {0, 0, 1}, {1, 1, 1}};
+            case 4 -> new int[][]{{1, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 0, 1}, {0, 0, 1}};
+            case 5 -> new int[][]{{1, 1, 1}, {1, 0, 0}, {1, 1, 1}, {0, 0, 1}, {1, 1, 1}};
+            case 6 -> new int[][]{{1, 1, 1}, {1, 0, 0}, {1, 1, 1}, {1, 0, 1}, {1, 1, 1}};
+            case 7 -> new int[][]{{1, 1, 1}, {0, 0, 1}, {0, 0, 1}, {0, 0, 1}, {0, 0, 1}};
+            case 8 -> new int[][]{{1, 1, 1}, {1, 0, 1}, {1, 1, 1}, {1, 0, 1}, {1, 1, 1}};
+            case 9 -> new int[][]{{1, 1, 1}, {1, 0, 1}, {1, 1, 1}, {0, 0, 1}, {1, 1, 1}};
+            default -> new int[][]{{1, 0, 1}, {0, 1, 0}, {1, 0, 1}, {0, 1, 0}, {1, 0, 1}}; // ? pro chybu
+        };
+
+        // Vykreslení podle matice
+        for (int row = 0; row < 5; row++) {
+            for (int col = 0; col < 3; col++) {
+                if (shape[row][col] == 1) {
+                    gc.fillRect(x + col * s, y + row * s, s, s);
+                }
+            }
         }
     }
 }

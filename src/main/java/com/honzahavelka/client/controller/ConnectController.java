@@ -54,25 +54,34 @@ public class ConnectController {
     // Listener pro první zprávu (Handshake)
     private void processHandshake(String msg) {
         Platform.runLater(() -> {
-            if (msg.startsWith("HELO")) {
-                // --- ÚSPĚCH ---
-                System.out.println("Server přijal spojení: " + msg);
+            try {
+                if (msg.startsWith("HELO")) {
+                    // --- ÚSPĚCH ---
+                    System.out.println("Server přijal spojení: " + msg);
 
-                // 1. Uložíme klienta do Mainu (aby ho mělo Menu i Hra)
-                Main.setNetworkClient(tempClient);
+                    // 1. Uložíme klienta do Mainu (aby ho mělo Menu i Hra)
+                    Main.setNetworkClient(tempClient);
 
-                // 2. Přepneme na Menu
-                Main.switchToMenu();
+                    // 2. Přepneme na Menu
+                    Main.switchToMenu();
 
-            } else if (msg.startsWith("ERRO")) {
-                // --- SERVER ODMÍTL (např. plno) ---
-                String error = msg.length() > 5 ? msg.substring(5) : "Neznámá chyba";
-                showError("Server odmítl připojení:\n" + error);
-                closeTempClient();
+                } else if (msg.startsWith("ERRO")) {
+                    // --- SERVER ODMÍTL (např. plno nebo ban) ---
+                    String error = msg.length() > 5 ? msg.substring(5) : "Neznámá chyba";
+                    showError("Server odmítl připojení:\n" + error);
+                    closeTempClient();
 
-            } else {
-                // --- DIVNÁ ODPOVĚĎ ---
-                showError("Neplatný protokol serveru.\nPřišlo: " + msg);
+                } else {
+                    // --- DIVNÁ ODPOVĚĎ (Jiný protokol?) ---
+                    showError("Neplatný protokol serveru.\nPřišlo: " + msg);
+                    closeTempClient();
+                }
+
+            } catch (Exception e) {
+                // --- CHYBA V KLIENTOVI ---
+                // Např. selhalo načtení menu.fxml v Main.switchToMenu()
+                e.printStackTrace();
+                showError("Chyba při inicializaci aplikace:\n" + e.getMessage());
                 closeTempClient();
             }
         });
@@ -88,5 +97,10 @@ public class ConnectController {
             tempClient.close();
             tempClient = null;
         }
+    }
+
+    public void setErrorMessage(String message) {
+        errorLabel.setText(message);
+        errorLabel.setStyle("-fx-text-fill: red;"); // Pro jistotu červeně
     }
 }

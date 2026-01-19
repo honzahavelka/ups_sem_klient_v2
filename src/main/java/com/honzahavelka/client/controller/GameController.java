@@ -50,6 +50,8 @@ public class GameController {
     private Timeline reconnectTimeline; // Objekt pro odpočet času
     private int reconnectSecondsLeft = 30; // Výchozí čas
 
+    private int simulationCounter = 0;
+
     public GameController() {
         this.gameState = new GameState();
         this.gameCanvas = new GameCanvas(gameState);
@@ -60,7 +62,7 @@ public class GameController {
         createReconnectOverlay();
 
         // Root obsahuje Canvas (vespod) a Overlay (navrchu)
-        this.root = new StackPane(this.gameCanvas, this.gameOverBox, this.reconnectBox, this.pauseBox);
+        this.root = new StackPane(this.gameCanvas, this.gameOverBox, this.pauseBox, this.reconnectBox);
         this.root.setPrefSize(800, 600);
 
         this.gameCanvas.start();
@@ -125,6 +127,8 @@ public class GameController {
     }
 
     private void startReconnectCountdown() {
+        pausedByMe = false;
+        pausedByOpponent = false;
         // 1. Resetujeme čas a UI
         reconnectSecondsLeft = 30;
         reconnectTimerLabel.setText(String.valueOf(reconnectSecondsLeft));
@@ -143,9 +147,6 @@ public class GameController {
             if (reconnectSecondsLeft <= 0) {
                 // Čas vypršel!
                 reconnectTimeline.stop();
-                // Pokud server do té doby neposlal KICK, vyvoláme ho uměle my,
-                // abychom hráče netrápili nekonečným čekáním.
-                handleKick();
             }
         }));
 
@@ -185,6 +186,7 @@ public class GameController {
     public void initNetwork(NetworkClient client) {
         this.networkClient = client;
         this.networkClient.setOnMessageReceived(this::processMessage);
+        this.networkClient.send("REDY");
     }
 
     public Parent getView() {
@@ -309,32 +311,39 @@ public class GameController {
 
         // 3. DŮLEŽITÉ: Vrátíme focus hře, aby fungovaly šipky/WS
         root.requestFocus();
+        networkClient.send("REDY");
     }
 
     private void processMessage(String msg) {
         // STAT zprávy nezpracováváme přes Platform.runLater kvůli výkonu (jdou rovnou do modelu)
         // Ale GAOV (změna UI) musíme obalit do runLater!
-        System.out.println("Message received: " + msg);
+
+        // System.out.println("Msg: " + msg); // Pro debug dobré, pro produkci u STAT zpráv raději vypnout (zahltí konzoli)
+
         try {
             if (msg.startsWith("STAT")) {
                 String[] parts = msg.split(" ");
-                if (parts.length >= 7) {
-                    gameState.ballX = Double.parseDouble(parts[1]);
-                    gameState.ballY = Double.parseDouble(parts[2]);
-                    gameState.paddle1Y = Double.parseDouble(parts[3]);
-                    gameState.paddle2Y = Double.parseDouble(parts[4]);
-                    gameState.score1 = Integer.parseInt(parts[5]);
-                    gameState.score2 = Integer.parseInt(parts[6]);
+
+                // Validace: Musíme mít dostatek dílků (STAT + 6 čísel)
+                if (parts.length < 7) {
+                    throw new IllegalArgumentException("Neúplná STAT zpráva (délka " + parts.length + ")");
                 }
+
+                // Tady může vyletět NumberFormatException, pokud server pošle nesmysl.
+                // Catch blok dole to zachytí a započítá jako chybu protokolu.
+                gameState.ballX = Double.parseDouble(parts[1]);
+                gameState.ballY = Double.parseDouble(parts[2]);
+                gameState.paddle1Y = Double.parseDouble(parts[3]);
+                gameState.paddle2Y = Double.parseDouble(parts[4]);
+                gameState.score1 = Integer.parseInt(parts[5]);
+                gameState.score2 = Integer.parseInt(parts[6]);
             }
             else if (msg.startsWith("PAUS")) {
                 Platform.runLater(() -> handlePause(msg));
             }
-
             else if (msg.startsWith("RESU")) {
                 Platform.runLater(() -> handleResume(msg));
             }
-
             else if (msg.startsWith("GAOV")) {
                 // Protokol: GAOV <winner_id> <score1> <score2>
                 System.out.println(msg);
@@ -344,7 +353,6 @@ public class GameController {
                 // Pokud přijde GAST, znamená to, že odveta byla přijata a hra začíná znovu
                 Platform.runLater(this::restartGame);
             }
-            // ... uvnitř processMessage ...
             else if (msg.startsWith("KICK")) {
                 Platform.runLater(this::handleKick);
             }
@@ -354,8 +362,33 @@ public class GameController {
             else if (msg.startsWith("CONT")) {
                 Platform.runLater(this::handleContinue);
             }
+            else if (msg.startsWith("GOAL") || msg.startsWith("PING")) {
+                // Odpověď serveru, že jsme připraveni (po gólu) nebo že žijeme (ping)
+                this.networkClient.send("REDY");
+            }
+            else if (msg.startsWith("LEOK")) {
+                //opuštění lobby
+            }
+            else if (msg.startsWith("REUP")) {
+                //informace o rematchy
+            }
+            // --- OCHRANA PROTI NEZNÁMÝM ZPRÁVÁM ---
+            else {
+                // Pokud přijde něco, co neznáme (např. "BLABLA 123")
+                throw new IllegalArgumentException("Neznámý příkaz: " + msg.split(" ")[0]);
+            }
+
         } catch (Exception e) {
-            e.printStackTrace();
+            // Zde chytáme vše:
+            // 1. NumberFormatException (z parsování STAT)
+            // 2. IllegalArgumentException (z validace délky nebo neznámého příkazu)
+            // 3. Jiné RuntimeExceptions
+
+            String errorDetail = e.getClass().getSimpleName() + ": " + e.getMessage();
+
+            // Zalogujeme a pošleme do Mainu k započítání (3 chyby -> disconnect)
+            // Používáme runLater, protože Main může chtít přepnout scénu na ConnectScreen
+            Platform.runLater(() -> Main.handleProtocolError(errorDetail));
         }
     }
 
@@ -430,6 +463,7 @@ public class GameController {
         rematchBtn.setText("Odveta (REMATCH)");
         gameState.gameOver = false;
         System.out.println("Nová hra začíná!");
+        networkClient.send("REDY");
     }
 
     // --- OVLÁDÁNÍ ---

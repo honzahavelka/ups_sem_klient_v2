@@ -29,7 +29,7 @@ public class GameState {
     }
 
     public void updatePhysics(double dt) {
-        if (!p1_paused && !p2_paused && !reconnecting) {
+        if (!p1_paused && !p2_paused) {
             player1.update(dt);
             player2.update(dt);
             ball.update(dt);

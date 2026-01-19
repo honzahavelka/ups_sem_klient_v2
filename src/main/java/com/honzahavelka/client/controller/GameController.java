@@ -301,7 +301,6 @@ public class GameController {
             int disconnectedSlot = Integer.parseInt(parts[1]);
             int mySlot = gameState.amILeft ? 0 : 1;
 
-            gameState.reconnecting = true;
 
             // Overlay zobrazíme jen tehdy, pokud se odpojil SOUPEŘ.
             // (Pokud server pošle RECO i pro mě, tak to ignoruji, protože já jsem tady)

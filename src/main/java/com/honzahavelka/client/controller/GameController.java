@@ -381,6 +381,10 @@ public class GameController {
             else if (msg.startsWith("REUP")) {
                 //informace o rematchy
             }
+            else if (msg.startsWith("ERRO")) {
+                System.out.println(msg);
+                //ingno chybu prozatim
+            }
             // --- OCHRANA PROTI NEZNÁMÝM ZPRÁVÁM ---
             else {
                 // Pokud přijde něco, co neznáme (např. "BLABLA 123")

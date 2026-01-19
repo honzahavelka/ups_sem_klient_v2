@@ -540,6 +540,7 @@ public class GameController {
             return;
         }
         if (pausedByMe || pausedByOpponent) return;
+        if (gameState.gameOver) return;
 
         if (event.getCode() == KeyCode.UP || event.getCode() == KeyCode.W) networkClient.send("INPT UP");
         else if (event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.S) networkClient.send("INPT DOWN");
@@ -549,6 +550,7 @@ public class GameController {
         if (networkClient == null) return;
         if (event.getCode() == KeyCode.UP || event.getCode() == KeyCode.W ||
                 event.getCode() == KeyCode.DOWN || event.getCode() == KeyCode.S) {
+            if (gameState.gameOver) return;
             networkClient.send("INPT STOP");
         }
     }

@@ -10,22 +10,25 @@ import java.net.Socket;
 import java.util.function.Consumer;
 
 public class NetworkClient {
-    private Socket socket;
-    private PrintWriter out;
-    private BufferedReader in;
+    // soket, writer, reader
+    private final Socket socket;
+    private final PrintWriter out;
+    private final BufferedReader in;
+
+    // vlákno na čtení
     private Thread listenerThread;
     private boolean running = false;
 
     // Callback - funkce, kterou zavoláme, když přijde zpráva
     private Consumer<String> onMessageReceived;
 
-    // V NetworkClient.java
 
-    // Změň hlavičku konstruktoru a vyhoď try-catch kolem new Socket
+    // kost
     public NetworkClient(String host, int port, Consumer<String> onMessageReceived) throws IOException {
         this.onMessageReceived = onMessageReceived;
 
-        // Tady už není try-catch! Pokud to selže, chybu chytí ConnectController
+        // pokud to selže chybu chytí connect controller a ví, že se nepřipojil
+        // pak si poradí
         System.out.println("Připojuji se k " + host + ":" + port + "...");
         socket = new Socket(host, port);
         out = new PrintWriter(socket.getOutputStream(), true);
@@ -35,24 +38,25 @@ public class NetworkClient {
         System.out.println("Připojeno!");
     }
 
+    // init poslouchací vlákno
     private void startListening() {
         running = true;
         listenerThread = new Thread(() -> {
             try {
                 String line;
-                // Čteme dokud je spojení a chodí data
+                // čteme dokud je spojení a chodí data
                 while (running && (line = in.readLine()) != null) {
 
                     if (line.startsWith("FBAN")) {
-                        // Pokud je to BAN, okamžitě to řešíme globálně
-                        // Nemusíme to posílat do Controlleru, ten už nic nezmůže
+                        // pokud je to BAN, okamžitě to řešíme globálně
+                        // nemusíme to posílat do Controlleru, ten už nic nezmůže
                         Main.showBanScreen(line);
 
-                        // Ukončíme smyčku čtení, protože jsme skončili
+                        // ukončíme smyčku čtení, protože jsme skončili
                         running = false;
                         break;
                     }
-                    onMessageReceived.accept(line); // Předáme zprávu dál
+                    onMessageReceived.accept(line); // předáme zprávu dál
                 }
 
                 // detekce ukončení ze strany serveru
@@ -64,17 +68,18 @@ public class NetworkClient {
                 if (running) System.out.println("Spojení přerušeno serverem.");
             }
         });
-        listenerThread.setDaemon(true); // Vlákno se ukončí, když se vypne aplikace
+        listenerThread.setDaemon(true); // vlákno se ukončí, když se vypne aplikace
         listenerThread.start();
     }
 
     public void send(String message) {
         if (out != null) {
-            System.out.println("Odesílám: " + message); // Debug výpis
+            System.out.println("Odesílám: " + message); // debug výpis
             out.println(message); // println přidá na konec \n, což server vyžaduje
         }
     }
 
+    // ukončení vlákna
     public void close() {
         running = false;
         try {
@@ -84,16 +89,14 @@ public class NetworkClient {
         }
     }
 
-    // Přidej toto do NetworkClient.java
+    // setter pro callback fci
     public void setOnMessageReceived(Consumer<String> listener) {
-        this.onMessageReceived = listener; // Poznámka: odstraň 'final' u proměnné onMessageReceived
+        this.onMessageReceived = listener;
     }
 
+    // co dělat když server ukončí spojení
     private void handleServerDisconnect() {
-        running = false; // Už nemá smysl číst dál
-
-        // Musíme zavolat Main, aby přepnul grafiku (musí to být v runLater)
-        // Můžeme Reuse metody showConnectScreen, nebo ukázat Alert
+        running = false; // už nemá smysl číst dál
         com.honzahavelka.client.Main.handleConnectionLost();
     }
 }

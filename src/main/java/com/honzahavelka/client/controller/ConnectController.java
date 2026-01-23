@@ -10,6 +10,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 
 import java.io.IOException;
+
+// controller pro připojení se k serveru
 public class ConnectController {
 
     @FXML private TextField ipField;
@@ -17,7 +19,7 @@ public class ConnectController {
     @FXML private Button connectBtn;
     @FXML private Label errorLabel;
 
-    // Dočasná reference, dokud nepotvrdíme HELO
+    // dočasná reference, dokud nepotvrdíme HELO
     private NetworkClient tempClient;
 
     @FXML
@@ -28,7 +30,7 @@ public class ConnectController {
         String ip = ipField.getText();
         String portStr = portField.getText();
 
-        // 1. Validace vstupu
+        // validace vstupu
         int port;
         try {
             port = Integer.parseInt(portStr);
@@ -37,10 +39,10 @@ public class ConnectController {
             return;
         }
 
-        // 2. Pokus o vytvoření socketu (neblokujeme UI vlákno dlouho, ale socket connect je rychlý)
+        // pokus o vytvoření socketu
         new Thread(() -> {
             try {
-                // Vytvoříme klienta a rovnou nastavíme listener na handshake
+                // vytvoříme klienta a rovnou nastavíme listener na handshake
                 tempClient = new NetworkClient(ip, port, this::processHandshake);
 
             } catch (IOException e) {
@@ -56,30 +58,29 @@ public class ConnectController {
         Platform.runLater(() -> {
             try {
                 if (msg.startsWith("HELO")) {
-                    // --- ÚSPĚCH ---
+                    // úspěch
                     System.out.println("Server přijal spojení: " + msg);
 
-                    // 1. Uložíme klienta do Mainu (aby ho mělo Menu i Hra)
+                    // uložíme klienta do Mainu
                     Main.setNetworkClient(tempClient);
 
-                    // 2. Přepneme na Menu
+                    // přepneme na Menu
                     Main.switchToMenu();
 
                 } else if (msg.startsWith("ERRO")) {
-                    // --- SERVER ODMÍTL (např. plno nebo ban) ---
+                    // server odmítl připojení
                     String error = msg.length() > 5 ? msg.substring(5) : "Neznámá chyba";
                     showError("Server odmítl připojení.");
                     closeTempClient();
 
                 } else {
-                    // --- DIVNÁ ODPOVĚĎ (Jiný protokol?) ---
+                    // nevalidní odpověď
                     showError("Neplatný protokol serveru.");
                     closeTempClient();
                 }
 
             } catch (Exception e) {
-                // --- CHYBA V KLIENTOVI ---
-                // Např. selhalo načtení menu.fxml v Main.switchToMenu()
+                // jakákoli další chyba
                 e.printStackTrace();
                 showError("Chyba při inicializaci aplikace:\n" + e.getMessage());
                 closeTempClient();
@@ -87,11 +88,13 @@ public class ConnectController {
         });
     }
 
+    // ukaž chybu
     private void showError(String text) {
         errorLabel.setText(text);
         connectBtn.setDisable(false); // Povolíme znovu tlačítko
     }
 
+    // zavři dočasnýho klienta
     private void closeTempClient() {
         if (tempClient != null) {
             tempClient.close();
@@ -99,6 +102,7 @@ public class ConnectController {
         }
     }
 
+    // nastav chybu
     public void setErrorMessage(String message) {
         errorLabel.setText(message);
         errorLabel.setStyle("-fx-text-fill: red;"); // Pro jistotu červeně

@@ -1,11 +1,13 @@
 package com.honzahavelka.client.model;
 
+// třída drží pozici a hejbe s pádlem
 public class Paddle {
-    // Konstanty pro design (stejné jako v GameCanvas)
+
+    // Konstanty pro design, stejné jako v GameCanvas
     public static final double WIDTH = 10;
     public static final double HEIGHT = 100;
 
-    // Rychlost pohybu pálky (pixelů za frame nebo za sekundu)
+    // Rychlost pohybu pálky px za sec
     private static final double SPEED = 400.0;
 
     private double x;
@@ -14,16 +16,17 @@ public class Paddle {
     // Aktuální směr pohybu (-1 nahoru, 0 stojí, 1 dolů)
     private int directionY = 0;
 
-    // Rozměry hřiště pro kolize (aby nevyjela ven)
+    // Rozměr hřiště pro kolize
     private final double fieldHeight;
 
+    // konst
     public Paddle(double startX, double startY, double fieldHeight) {
         this.x = startX;
         this.y = startY;
         this.fieldHeight = fieldHeight;
     }
 
-    // Tuto metodu bude volat GameLoop (AnimationTimer) v každém snímku
+    // update pádla podle času dt
     public void update(double dt) {
         if (directionY != 0) {
             // Vzorec: nová_pozice = stará + (rychlost * čas)
@@ -32,7 +35,7 @@ public class Paddle {
         }
     }
 
-    // Zabrání vyjetí pálky z obrazovky
+    // zabrání vyjetí pálky z obrazovky
     private void clampPosition() {
         if (y < 0) {
             y = 0;
@@ -41,27 +44,24 @@ public class Paddle {
         }
     }
 
-    // --- Ovládání ---
-
+    // ovládání
     public void stop() {
         this.directionY = 0;
     }
-
     public void moveUp() {
         this.directionY = -1;
     }
-
     public void moveDown() {
         this.directionY = 1;
     }
 
-    // Pro absolutní synchronizaci (kdyby se klienti rozešli, server pošle korekci)
+    // pro synchronizaci se serverem
     public void setY(double y) {
         this.y = y;
         clampPosition();
     }
 
-    // --- Gettery ---
+    // gettery
     public double getX() { return x; }
     public double getY() { return y; }
     public double getWidth() { return WIDTH; }

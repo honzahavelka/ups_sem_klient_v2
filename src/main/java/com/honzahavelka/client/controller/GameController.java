@@ -26,19 +26,22 @@ import java.util.Objects;
 public class GameController {
 
     private NetworkClient networkClient;
-    private GameState gameState;
-    private GameCanvas gameCanvas;
-    private StackPane root;
 
-    // --- NOVÉ UI PRVKY PRO GAME OVER ---
+    // herní stav
+    private final GameState gameState;
+    private final GameCanvas gameCanvas;
+    private final StackPane root;
+
+    // UI prvky pro gameover
     private VBox gameOverBox;
     private Label resultLabel;
     private Label scoreLabel;
     private Button rematchBtn;
     private Button leaveBtn;
 
-    private boolean wasKicked = false; // Nový příznak
+    private boolean wasKicked = false; // byl jsem kickut z lobby?
 
+    // pause UI
     private VBox pauseBox;
     private Label pauseLabel;
     private Button pauseLeaveBtn;
@@ -46,17 +49,19 @@ public class GameController {
     private boolean pausedByMe = false;
     private boolean pausedByOpponent = false;
 
+    // reconnect UI
     private VBox reconnectBox;
     private Label reconnectMsgLabel;
     private Label reconnectTimerLabel;
-    private Timeline reconnectTimeline; // Objekt pro odpočet času
-    private int reconnectSecondsLeft = 30; // Výchozí čas
+    private Timeline reconnectTimeline; // časovač
+    private int reconnectSecondsLeft = 30; // výchozí čas
 
+    // konst
     public GameController() {
         this.gameState = new GameState();
         this.gameCanvas = new GameCanvas(gameState);
 
-        // --- VYTVOŘENÍ GAME OVER OVERLAY ---
+        // vytvoření overlayů
         createGameOverOverlay();
         createPauseOverlay();
         createReconnectOverlay();
@@ -68,6 +73,7 @@ public class GameController {
         this.gameCanvas.start();
     }
 
+    // vytvoří overlay pro game over
     private void createGameOverOverlay() {
         // 1. Label pro výsledek (Výhra/Prohra)
         resultLabel = new Label("");
@@ -101,6 +107,7 @@ public class GameController {
         gameOverBox.setVisible(false);
     }
 
+    // vytvoří overlay pro reconnect
     private void createReconnectOverlay() {
         reconnectMsgLabel = new Label("Čekám na soupeře...");
         reconnectMsgLabel.setFont(Font.font("Arial", FontWeight.BOLD, 30));
@@ -126,6 +133,7 @@ public class GameController {
         reconnectBox.setVisible(false);
     }
 
+    // zapne countdown - čas na připojení soupeře
     private void startReconnectCountdown() {
         pausedByMe = false;
         pausedByOpponent = false;
@@ -155,6 +163,7 @@ public class GameController {
         reconnectTimeline.play();
     }
 
+    // zastaví časovač
     private void stopReconnectCountdown() {
         if (reconnectTimeline != null) {
             reconnectTimeline.stop();
@@ -162,6 +171,7 @@ public class GameController {
         reconnectBox.setVisible(false);
     }
 
+    // vytvoří pause overlay
     private void createPauseOverlay() {
         pauseLabel = new Label("PAUZA");
         pauseLabel.setFont(Font.font("Arial", FontWeight.BOLD, 40));
@@ -179,22 +189,25 @@ public class GameController {
         pauseBox.setVisible(false); // Defaultně skryté
     }
 
+    // nastaví, jestli je hráč levej nebo pravej podle id_slotu
     public void setInitialSide(boolean amILeft) {
         this.gameState.amILeft = amILeft;
     }
 
+    // nastaví networkklienta
     public void initNetwork(NetworkClient client) {
         this.networkClient = client;
         this.networkClient.setOnMessageReceived(this::processMessage);
         this.networkClient.send("REDY");
     }
 
+    // getter pro view
     public Parent getView() {
         return root;
     }
 
-    // --- LOGIKA TLAČÍTEK ---
 
+    // funkce pro tlačítko na rematch
     private void handleRematch() {
         // Odešle žádost o odvetu
         if (networkClient != null) {
@@ -204,6 +217,7 @@ public class GameController {
         }
     }
 
+    // funkce pro tlačítko opustit lobby
     private void handleLeave() {
         stopReconnectCountdown();
         if (networkClient != null) {
@@ -219,6 +233,7 @@ public class GameController {
         }
     }
 
+    // popasuj se se zprávou KICK od serveru
     private void handleKick() {
         stopReconnectCountdown();
         wasKicked = true; // Nastavíme příznak
@@ -238,6 +253,7 @@ public class GameController {
         gameState.gameOver = true;
     }
 
+    // popasuj se se zprávou PAUS od serveru
     private void handlePause(String msg) {
         // Msg: PAUS <slot_id>
         try {
@@ -266,6 +282,7 @@ public class GameController {
 
     }
 
+    // popasuj se se zprávou RESU od serveru
     private void handleResume(String msg) {
         stopReconnectCountdown();
         // Msg: RESU <slot_id>
@@ -294,6 +311,7 @@ public class GameController {
         }
     }
 
+    // popasuj se se zprávou RECO od serveru
     private void handleReconnect(String msg) {
         try {
             // Msg: RECO <slot_id>
@@ -312,6 +330,7 @@ public class GameController {
         }
     }
 
+    // vyřeš CONT od serveru
     private void handleContinue() {
         System.out.println("Soupeř se vrátil, hra pokračuje (CONT).");
         gameState.reconnecting = false;
@@ -330,12 +349,8 @@ public class GameController {
         networkClient.send("REDY");
     }
 
+    // funkce podle zprávy volá handlery pro danou zprávu
     private void processMessage(String msg) {
-        // STAT zprávy nezpracováváme přes Platform.runLater kvůli výkonu (jdou rovnou do modelu)
-        // Ale GAOV (změna UI) musíme obalit do runLater!
-
-        // System.out.println("Msg: " + msg); // Pro debug dobré, pro produkci u STAT zpráv raději vypnout (zahltí konzoli)
-
         try {
             if (msg.startsWith("MOVE")) {
                 Platform.runLater(() -> handleMove(msg));
@@ -382,28 +397,22 @@ public class GameController {
             }
             else if (msg.startsWith("ERRO")) {
                 System.out.println(msg);
-                //ingno chybu prozatim
             }
-            // --- OCHRANA PROTI NEZNÁMÝM ZPRÁVÁM ---
+            // ochrana na neznamý zprávy
             else {
-                // Pokud přijde něco, co neznáme (např. "BLABLA 123")
                 throw new IllegalArgumentException("Neznámý příkaz: " + msg.split(" ")[0]);
             }
 
         } catch (Exception e) {
-            // Zde chytáme vše:
-            // 1. NumberFormatException (z parsování STAT)
-            // 2. IllegalArgumentException (z validace délky nebo neznámého příkazu)
-            // 3. Jiné RuntimeExceptions
-
+            // tohle zachytí jakoukoli chybu ve zpracování zprávy
             String errorDetail = e.getClass().getSimpleName() + ": " + e.getMessage();
 
-            // Zalogujeme a pošleme do Mainu k započítání (3 chyby -> disconnect)
-            // Používáme runLater, protože Main může chtít přepnout scénu na ConnectScreen
+            // Zalogujeme a pošleme do Mainu k započítání
             Platform.runLater(() -> Main.handleProtocolError(errorDetail));
         }
     }
 
+    // popasuj se se STAT
     private void handleStat(String msg) {
         String[] parts = msg.split(" ");
 
@@ -414,6 +423,7 @@ public class GameController {
         gameState.score2 = Integer.parseInt(parts[6]);
     }
 
+    // popasuj se s GOAL
     private void handleGoal(String msg) {
         this.networkClient.send("REDY");
         if (msg.startsWith("PING")) return;
@@ -429,6 +439,7 @@ public class GameController {
         gameState.ball.setPosition(395, 295);
     }
 
+    // popasuj se s BALL
     private void handleBall(String msg) {
         String[] parts = msg.split(" ");
         gameState.ball.setPosition(Double.parseDouble(parts[1]),  Double.parseDouble(parts[2]));
@@ -436,6 +447,7 @@ public class GameController {
         gameState.ball.setDy(Double.parseDouble(parts[4]));
     }
 
+    // popasuj se s MOVE
     private void handleMove(String msg) {
         String[] parts = msg.split(" ");
 
@@ -455,6 +467,7 @@ public class GameController {
         }
     }
 
+    // ukož game over
     private void showGameOver(String msg) {
         stopReconnectCountdown();
         pauseBox.setVisible(false);
@@ -486,6 +499,7 @@ public class GameController {
         gameState.gameOver = true; // Zastaví logiku v Canvasu, pokud chceš
     }
 
+    // handle pause
     private void updatePauseState() {
         // 1. Pokud ani jeden nepauzuje, skryjeme overlay a povolíme hru
         if (!pausedByMe && !pausedByOpponent) {
@@ -512,6 +526,7 @@ public class GameController {
         }
     }
 
+    // resetuje celou hru
     private void restartGame() {
         gameState.resetPhysics();
         stopReconnectCountdown();
@@ -530,7 +545,7 @@ public class GameController {
         networkClient.send("REDY");
     }
 
-    // --- OVLÁDÁNÍ ---
+    // ovládání klávesnicí
     public void onKeyPressed(KeyEvent event) {
         if (networkClient == null || gameOverBox.isVisible()) return; // Zákaz pohybu při Game Over
 

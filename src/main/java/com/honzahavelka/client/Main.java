@@ -2,7 +2,7 @@ package com.honzahavelka.client;
 
 import com.honzahavelka.client.controller.ConnectController;
 import com.honzahavelka.client.net.NetworkClient;
-import com.honzahavelka.client.controller.GameController; // Vytvoříme později
+import com.honzahavelka.client.controller.GameController;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -12,32 +12,34 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 
+// hlavní třída, přepíná scény
 public class Main extends Application {
 
-    // Statické reference, abychom k nim mohli přistupovat z Controllerů
+    // statické reference pro přístup z kontrolerů
     private static NetworkClient networkClient;
     private static Stage primaryStage;
     private static String loggedInNick = null;
 
+    // pokud server řiká blbosti, počítadlo na chybné zprávy
     private static int protocolErrorCount = 0;
     private static final int MAX_PROTOCOL_ERRORS = 3;
 
-    // Tuto metodu volají Controllery, když se něco pokazí
+    // metoda pokud controller zachytí nevalidní zprávu
     public static void handleProtocolError(String details) {
         protocolErrorCount++;
 
         System.err.println("VAROVÁNÍ: Chyba protokolu (" + protocolErrorCount + "/" + MAX_PROTOCOL_ERRORS + "): " + details);
 
-        // Pokud jsme ještě nepřekročili limit, jen to ignorujeme (return)
+        // pokud jsme ještě nepřekročili limit, jen to ignorujeme (return)
         if (protocolErrorCount < MAX_PROTOCOL_ERRORS) {
             return;
         }
 
-        // Pokud jsme limit překročili, provedeme tvrdé odpojení
+        // pokud jsme limit překročili, provedeme tvrdé odpojení
         performForceDisconnect("Překročen limit chyb protokolu (" + protocolErrorCount + "). Poslední: " + details);
     }
 
-    // Původní logika odpojení přesunuta do privátní metody
+    // odpojení od serveru
     private static void performForceDisconnect(String reason) {
         System.err.println("CRITICAL: Odpojuji klienta...");
 
@@ -45,44 +47,43 @@ public class Main extends Application {
             try {
                 networkClient.close();
             } catch (Exception e) {
-                // Ignorujeme
+                // ignorujem
             }
             networkClient = null;
         }
         setLoggedInNick(null);
 
-        // Zobrazíme ConnectScreen s důvodem
+        // zobrazíme ConnectScreen s důvodem
         showConnectScreen("Odpojeno od serveru:\n" + reason);
     }
 
-
-
-    // Upravená reakce na pád serveru
+    // handle pád serveru
     public static void handleConnectionLost() {
-        // Vyčistíme staré spojení
+        // vyčistíme staré spojení
         if (networkClient != null) {
             networkClient.close();
             networkClient = null;
         }
+        // odregistrujem
         setLoggedInNick(null);
 
-        // Místo Alertu rovnou zobrazíme ConnectScreen s textem v labelu
+        // zobrazíme ConnectScreen s textem v labelu
         showConnectScreen("Spojení se serverem bylo ztraceno.");
     }
 
-    // Nová metoda, která umí zobrazit i chybu
+    // metoda pro zobrazení prvotní obrazovky
     public static void showConnectScreen(String errorMessage) {
         Platform.runLater(() -> {
             try {
                 FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("connect.fxml"));
 
-                // 1. Nejdřív načteme view (tím se vytvoří i Controller)
+                // načtem view - vytvoří se kontroler
                 Parent root = fxmlLoader.load();
 
-                // 2. Teď získáme instanci Controlleru, kterou FXMLLoader vytvoril
+                // získáme instanci Controlleru, kterou FXMLLoader vytvoril
                 ConnectController controller = fxmlLoader.getController();
 
-                // 3. Pokud máme chybovou hlášku, předáme ji Controlleru
+                // pokud máme chybovou hlášku, předáme ji Controlleru
                 if (errorMessage != null) {
                     controller.setErrorMessage(errorMessage);
                 }
@@ -99,18 +100,18 @@ public class Main extends Application {
         });
     }
 
+    // start fce
     @Override
     public void start(Stage stage) throws IOException {
         primaryStage = stage;
-
-        // 1. Inicializace sítě (Připojíme se hned při startu)
         showConnectScreen();
     }
 
+    // metoda pro connectscreen ale bez chybové hlášky
     public static void showConnectScreen() {
         try {
             FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("connect.fxml"));
-            Scene scene = new Scene(fxmlLoader.load(), 350, 300); // Menší okno
+            Scene scene = new Scene(fxmlLoader.load(), 350, 300);
             primaryStage.setTitle("Pong Client - Connect");
             primaryStage.setScene(scene);
             primaryStage.centerOnScreen();
@@ -121,16 +122,17 @@ public class Main extends Application {
         }
     }
 
+    // načtení ban obrazovky
     public static void showBanScreen(String rawMessage) {
         Platform.runLater(() -> {
             try {
-                // 1. Získání důvodu (FBAN <důvod>)
+                // získání důvodu (FBAN <důvod>)
                 String reason = "Neznámý důvod";
                 if (rawMessage.length() > 5) {
                     reason = rawMessage.substring(5);
                 }
 
-                // 2. Vytvoření UI (Čistý Java kód, FXML není potřeba pro tak jednoduchou věc)
+                // vytvoření UI celkem na hulváta
                 javafx.scene.control.Label titleLabel = new javafx.scene.control.Label("BANNED");
                 titleLabel.setFont(javafx.scene.text.Font.font("Impact", 80)); // Velké písmo
                 titleLabel.setTextFill(javafx.scene.paint.Color.RED);
@@ -146,14 +148,14 @@ public class Main extends Application {
 
                 javafx.scene.layout.VBox root = new javafx.scene.layout.VBox(30, titleLabel, reasonLabel, exitBtn);
                 root.setAlignment(javafx.geometry.Pos.CENTER);
-                root.setStyle("-fx-background-color: black;"); // Černé pozadí
+                root.setStyle("-fx-background-color: black;");
 
-                // 3. Nastavení scény
+                // setup scény
                 Scene banScene = new Scene(root, 800, 600);
                 primaryStage.setScene(banScene);
                 primaryStage.setTitle("BANNED FROM SERVER");
 
-                // 4. Odpojení sítě (už nemá smysl komunikovat)
+                // odpojení od serveru
                 if (networkClient != null) {
                     networkClient.close();
                 }
@@ -164,17 +166,13 @@ public class Main extends Application {
         });
     }
 
-
-    /**
-     * Metoda pro přepnutí z Menu do Hry.
-     * Zavolá ji MenuController, když přijde "JOOK".
-     */
-    public static void switchToGame(boolean amILeft) { // <--- Přidán parametr
+    // metoda pro přepnutí z menu do hry
+    public static void switchToGame(boolean amILeft) {
         Platform.runLater(() -> {
             try {
                 GameController gameController = new GameController();
 
-                // Předáme informaci o straně do GameControlleru
+                // předáme informaci o straně do GameControlleru
                 gameController.setInitialSide(amILeft);
 
                 gameController.initNetwork(networkClient);
@@ -193,7 +191,7 @@ public class Main extends Application {
         });
     }
 
-    // Tuto metodu teď volá ConnectController po úspěšném HELO
+    // přechod z connectu do menu
     public static void switchToMenu() {
         Platform.runLater(() -> {
             try {
@@ -208,25 +206,28 @@ public class Main extends Application {
         });
     }
 
+    // nastavení networkclienta - dělá connectcontroller pří správným připojení
     public static void setNetworkClient(NetworkClient client) {
         networkClient = client;
         protocolErrorCount = 0;
     }
 
-
+    // získání nicku
     public static String getLoggedInNick() {
         return loggedInNick;
     }
 
+    // nastavení nicku - delá menu controller
     public static void setLoggedInNick(String nick) {
         loggedInNick = nick;
     }
 
-    // Getter pro Controllery, aby mohly posílat data (client.send(...))
+    // getter pro controllery
     public static NetworkClient getNetworkClient() {
         return networkClient;
     }
 
+    // ukončení app
     @Override
     public void stop() throws Exception {
         // Zavřeme socket při ukončení aplikace křížkem
@@ -237,6 +238,7 @@ public class Main extends Application {
         super.stop();
     }
 
+    // hlavní fce
     public static void main(String[] args) {
         launch();
     }

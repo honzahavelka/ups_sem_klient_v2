@@ -13,6 +13,8 @@ import javafx.scene.layout.VBox;
 
 import javafx.scene.input.KeyEvent;
 
+
+// controller pro menu - login a připojení do lobby
 public class MenuController {
 
     @FXML private TextField nickField;
@@ -24,13 +26,14 @@ public class MenuController {
     @FXML private Button leaveBtn;
     @FXML private Button joinBtn;
 
-    // --- NOVÉ PRO ESC MENU ---
+    // escape menu
     @FXML private StackPane rootPane; // Kořen (kvůli focusu)
     @FXML private VBox escMenuBox;    // Overlay menu
     @FXML private VBox contentBox;    // Původní obsah (pro rozostření/disable)
 
     private NetworkClient networkClient;
 
+    // init funkce
     @FXML
     public void initialize() {
         networkClient = Main.getNetworkClient();
@@ -40,32 +43,32 @@ public class MenuController {
             return;
         }
 
-        // Nastavíme listener
+        // nastavíme listener
         networkClient.setOnMessageReceived(this::processMessage);
 
-        // --- NOVÉ: KONTROLA PŘEDCHOZÍHO PŘIHLÁŠENÍ ---
+        // jsme přihlášeni?
         String savedNick = Main.getLoggedInNick();
 
         if (savedNick != null) {
             // Hráč už je přihlášený z minula a socket stále běží!
-            // 1. Vyplníme pole
+            // vyplníme pole
             nickField.setText(savedNick);
 
-            // 2. Zamkneme Login sekci (už není potřeba posílat LOGI)
+            // zamkneme Login sekci (už není potřeba posílat LOGI)
             nickField.setDisable(true);
             loginBtn.setDisable(true);
 
-            // 3. Odemkneme Lobby sekci
+            // odemkneme Lobby sekci
             lobbyBox.setDisable(false);
 
-            // 4. Informujeme uživatele
+            // informujeme uživatele
             statusLabel.setText("Vítej zpět, " + savedNick);
             statusLabel.setStyle("-fx-text-fill: green;");
         }
         Platform.runLater(() -> rootPane.requestFocus());
     }
 
-    // --- OVLÁDÁNÍ KLÁVESNICE ---
+    // klávesnice ESC
     @FXML
     public void onKeyPressed(KeyEvent event) {
         if (event.getCode() == KeyCode.ESCAPE) {
@@ -73,10 +76,11 @@ public class MenuController {
         }
     }
 
+    // přepnou mezi escape menu
     private void toggleEscMenu() {
         boolean isVisible = escMenuBox.isVisible();
         escMenuBox.setVisible(!isVisible);
-        contentBox.setDisable(!isVisible); // Deaktivujeme tlačítka vespod, aby nešlo klikat "skrz"
+        contentBox.setDisable(!isVisible); // Deaktivujeme tlačítka vespod, aby nešlo klikat skrz
 
         if (!isVisible) {
             // Pokud jsme menu právě otevřeli
@@ -89,23 +93,23 @@ public class MenuController {
         toggleEscMenu(); // Jen zavře menu
     }
 
+    // funkce odpojení od serveru
     @FXML
     protected void onDisconnectClick() {
-        // 1. Zavřít spojení
+        // zavřít spojení
         if (networkClient != null) {
-            // Pošleme serveru sbohem (volitelné, server to pozná i tak)
-            // networkClient.send("LEAV");
             networkClient.close();
         }
 
-        // 2. Vyčistit globální stav v Main
+        // vyčistit globální stav v Main
         Main.setNetworkClient(null);
         Main.setLoggedInNick(null); // Zapomeneme nick, aby se příště musel přihlásit znovu
 
-        // 3. Přepnout na Connect obrazovku
+        // přepnout na Connect obrazovku
         Main.showConnectScreen();
     }
 
+    // ukončí celej program
     @FXML
     protected void onExitClick() {
         // Ukončit celou aplikaci
@@ -116,6 +120,7 @@ public class MenuController {
         System.exit(0);
     }
 
+    // pokusí se zaregistrovat
     @FXML
     protected void onLoginClick() {
         String nick = nickField.getText();
@@ -128,6 +133,7 @@ public class MenuController {
         statusLabel.setText("Přihlašuji...");
     }
 
+    // pokusí se připojit do lobby
     @FXML
     protected void onJoinClick() {
         String lobbyId = lobbyField.getText();
@@ -135,24 +141,22 @@ public class MenuController {
             statusLabel.setText("Zadej ID lobby!");
             return;
         }
-        // Odeslání protokolu: JOIN <LobbyID>
+        // odeslání protokolu: JOIN <LobbyID>
         networkClient.send("JOIN " + lobbyId);
         statusLabel.setText("Připojuji do lobby " + lobbyId + "...");
     }
 
-    // --- NOVÁ METODA PRO TLAČÍTKO LEAVE ---
+    // pokusí se opustit lobby
     @FXML
     protected void onLeaveClick() {
         networkClient.send("LEAV");
         statusLabel.setText("Opouštím lobby...");
-        leaveBtn.setDisable(true); // Aby na to neklikal víckrát
+        leaveBtn.setDisable(true); // aby na to neklikal víckrát
     }
 
     // Metoda pro zpracování odpovědí ze serveru
-    // V MenuController.java uprav metodu processMessage:
-
     private void processMessage(String msg) {
-        System.out.println("Message received: " + msg);
+        //System.out.println("Message received: " + msg);
 
         Platform.runLater(() -> {
             try {
@@ -164,7 +168,6 @@ public class MenuController {
                 }
 
                 String cmd = parts[0];
-
                 switch (cmd) {
                     case "LOOK":
                         // Očekáváme: LOOK <nick>
@@ -219,15 +222,13 @@ public class MenuController {
                     case "KICK":
                         break;
 
-                    // --- NOVÉ: OCHRANA PROTI NEZNÁMÝM PŘÍKAZŮM ---
+                    // ochrana proti neznamim příkazům
                     default:
                         throw new IllegalArgumentException("Neznámý příkaz v menu: " + cmd);
                 }
 
             } catch (Exception e) {
-                // --- CENTRÁLNÍ ZPRACOVÁNÍ CHYB ---
-                // Ať už je to IndexOutOfBounds (chybí argumenty) nebo IllegalArgument (neznámý příkaz),
-                // pošleme to do Mainu. Ten započítá chybu a při 3. chybě nás odpojí.
+                // cokoliv se stane špatně kvůli nevalidní zprávě jde sem
                 String errorDetail = e.getClass().getSimpleName() + ": " + e.getMessage();
                 Main.handleProtocolError(errorDetail + " [Msg: " + msg + "]");
             }

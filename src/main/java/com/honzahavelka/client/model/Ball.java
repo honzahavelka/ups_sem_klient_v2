@@ -1,12 +1,16 @@
 package com.honzahavelka.client.model;
 
+// třída ukládá míč
 public class Ball {
+    // velikost
     public static final double SIZE = 10;
 
+    // pozice
     private double x, y;
-    private double dx, dy; // Vektor pohybu
-    private double speed;  // Celková rychlost
+    private double dx, dy; // vektor pohybu
+    private double speed;  // celková rychlost
 
+    // konst
     public Ball(double startX, double startY, double initialSpeed) {
         this.x = startX;
         this.y = startY;
@@ -15,18 +19,17 @@ public class Ball {
         this.dy = 0;
     }
 
-    // Volat v GameLoopu
+    // update pozice podle času
     public void update(double dt) {
-        // dx a dy jsou nyní v "pixelech za sekundu"
         x += dx * dt;
         y += dy * dt;
 
         checkWallCollision();
     }
 
+    // invertuje dy při odrazu od stěny
     private void checkWallCollision() {
         // Jednoduchý odraz od stropu a podlahy (čistě klientská predikce)
-        // 600 je výška okna (můžeš předávat v konstruktoru)
         if (y <= 0) {
             y = 0;
             dy = -dy;
@@ -37,6 +40,7 @@ public class Ball {
         }
     }
 
+    // nastaví vektor
     public void setDx(double dx) {
         this.dx = dx;
     }
@@ -45,13 +49,13 @@ public class Ball {
         this.dy = dy;
     }
 
-    // Pro tvrdou synchronizaci pozice (když server pošle "Tady je míček")
+    // pro synchronizaci
     public void setPosition(double x, double y) {
         this.x = x;
         this.y = y;
     }
 
-    // --- Gettery ---
+    // gettery
     public double getX() { return x; }
     public double getY() { return y; }
 }
